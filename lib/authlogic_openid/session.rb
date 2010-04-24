@@ -91,8 +91,8 @@ module AuthlogicOpenid
         end
        
         def validate_by_openid
-          if defined?(@@in_progress) && @@in_progress
-            self.attempted_record = @@in_progress
+          if Thread.current[:authlogic_openid_auth_in_progress]
+            self.attempted_record = Thread.current[:authlogic_openid_auth_in_progress] 
             return true 
           end
           self.remember_me = controller.params[:remember_me] == "true" if controller.params.key?(:remember_me)
@@ -106,7 +106,7 @@ module AuthlogicOpenid
           controller.send(:authenticate_with_open_id, openid_identifier, options) do |result, openid_identifier, registration|
             if result.unsuccessful?
               errors.add_to_base(result.message)
-              @@in_progress = false
+              Thread.current[:authlogic_openid_auth_in_progress] = nil
               return
             end
             
@@ -115,13 +115,13 @@ module AuthlogicOpenid
             if !attempted_record
               if auto_register?
                 auto_reg_record = create_open_id_auto_register_record(openid_identifier, registration)
-                @@in_progress = self.attempted_record = auto_reg_record
+                Thread.current[:authlogic_openid_auth_in_progress] = self.attempted_record = auto_reg_record
                 auto_reg_record.errors.each {|attr, msg| errors.add(attr, msg) } if !auto_reg_record.save
               else
                 errors.add(:openid_identifier, "did not match any users in our database, have you set up your account to use OpenID?")
               end
             end
-            @@in_progress = false
+            Thread.current[:authlogic_openid_auth_in_progress] = nil
           end
         end
 
